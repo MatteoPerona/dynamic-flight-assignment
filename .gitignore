@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Project specifics
+.DS_Store
+.idea/
+.vscode/
+*.log
+
+# Gurobi
+gurobi.log
+
+problem-description.md
