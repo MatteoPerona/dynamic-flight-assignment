@@ -1,6 +1,4 @@
-import gurobipy as gp
-from gurobipy import GRB
-
+from gurobipy import *
 # --- Data ---
 AIRPORTS = ['A', 'B', 'C']
 DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
@@ -42,25 +40,25 @@ def solve_cargo_operations(fleet_size=1200, demand_override=None, verbose=True):
     
     # --- Model ---
     # Suppress output if not verbose
-    env = gp.Env(empty=True)
+    env = Env(empty=True)
     if not verbose:
         env.setParam('OutputFlag', 0)
     else:
         env.setParam('OutputFlag', 1)
     env.start()
     
-    model = gp.Model("CargoOperations", env=env)
+    myModel = Model("CargoOperations", env=env)
 
     # --- Variables ---
-    x = model.addVars(ROUTES, range(T), vtype=GRB.INTEGER, name="x")
-    y = model.addVars(ROUTES, range(T), vtype=GRB.INTEGER, name="y")
-    I = model.addVars(AIRPORTS, range(T), vtype=GRB.INTEGER, name="I")
-    H = model.addVars(demand.keys(), range(T), vtype=GRB.INTEGER, name="H")
+    x = myModel.addVars(ROUTES, range(T), vtype=GRB.INTEGER, name="x")
+    y = myModel.addVars(ROUTES, range(T), vtype=GRB.INTEGER, name="y")
+    I = myModel.addVars(AIRPORTS, range(T), vtype=GRB.INTEGER, name="I")
+    H = myModel.addVars(demand.keys(), range(T), vtype=GRB.INTEGER, name="H")
 
     # --- Objective ---
-    obj_repo = gp.quicksum(COST_REPO[i,j] * y[i,j,t] for i,j in ROUTES for t in range(T))
-    obj_hold = gp.quicksum(COST_HOLD * H[i,j,t] for (i,j) in demand.keys() for t in range(T))
-    model.setObjective(obj_repo + obj_hold, GRB.MINIMIZE)
+    obj_repo = quicksum(COST_REPO[i,j] * y[i,j,t] for i,j in ROUTES for t in range(T))
+    obj_hold = quicksum(COST_HOLD * H[i,j,t] for (i,j) in demand.keys() for t in range(T))
+    myModel.setObjective(obj_repo + obj_hold, GRB.MINIMIZE)
 
     # --- Constraints ---
     def prev(t):
@@ -69,11 +67,11 @@ def solve_cargo_operations(fleet_size=1200, demand_override=None, verbose=True):
     # 1. Aircraft Flow Balance
     for i in AIRPORTS:
         for t in range(T):
-            inbound = gp.quicksum(x[j, i, prev(t)] + y[j, i, prev(t)] for j in AIRPORTS if j != i)
+            inbound = quicksum(x[j, i, prev(t)] + y[j, i, prev(t)] for j in AIRPORTS if j != i)
             prev_inv = I[i, prev(t)]
-            outbound = gp.quicksum(x[i, j, t] + y[i, j, t] for j in AIRPORTS if j != i)
+            outbound = quicksum(x[i, j, t] + y[i, j, t] for j in AIRPORTS if j != i)
             curr_inv = I[i, t]
-            model.addConstr(inbound + prev_inv == outbound + curr_inv, name=f"FlowBal_Air_{i}_{DAYS[t]}")
+            myModel.addConstr(inbound + prev_inv == outbound + curr_inv, name=f"FlowBal_Air_{i}_{DAYS[t]}")
 
     # 2. Cargo Flow Balance
     for (i, j), d_vals in demand.items():
@@ -82,26 +80,26 @@ def solve_cargo_operations(fleet_size=1200, demand_override=None, verbose=True):
             new_demand = d_vals[t]
             shipped = x[i, j, t]
             backlog_curr = H[i, j, t]
-            model.addConstr(backlog_prev + new_demand == shipped + backlog_curr, name=f"FlowBal_Cargo_{i}_{j}_{DAYS[t]}")
+            myModel.addConstr(backlog_prev + new_demand == shipped + backlog_curr, name=f"FlowBal_Cargo_{i}_{j}_{DAYS[t]}")
 
     # 3. Fleet Size
     for t in range(T):
-        total_in_air = gp.quicksum(x[i, j, t] + y[i, j, t] for i, j in ROUTES)
-        total_on_ground = gp.quicksum(I[i, t] for i in AIRPORTS)
-        model.addConstr(total_in_air + total_on_ground == fleet_size, name=f"FleetSize_{DAYS[t]}")
+        total_in_air = quicksum(x[i, j, t] + y[i, j, t] for i, j in ROUTES)
+        total_on_ground = quicksum(I[i, t] for i in AIRPORTS)
+        myModel.addConstr(total_in_air + total_on_ground == fleet_size, name=f"FleetSize_{DAYS[t]}")
 
     # --- Solve ---
-    model.optimize()
+    myModel.optimize()
 
     # --- Output ---
-    if model.status == GRB.OPTIMAL:
+    if myModel.status == GRB.OPTIMAL:
         repo_cost = obj_repo.getValue()
         hold_cost = obj_hold.getValue()
         total_shipped = sum(x[i,j,t].X for i,j in ROUTES for t in range(T))
         total_backlog_days = sum(H[i,j,t].X for i,j in demand.keys() for t in range(T)) # Sum of H is total backlog-days
         
         if verbose:
-            print(f"\nObjective Value: {model.objVal}")
+            print(f"\nObjective Value: {myModel.objVal}")
             print("\n--- Weekly Schedule ---")
             print(f"{'Day':<5} {'Origin':<6} {'Dest':<6} {'Loaded':<8} {'Empty':<8} {'Held':<8}")
             for t in range(T):
@@ -120,13 +118,13 @@ def solve_cargo_operations(fleet_size=1200, demand_override=None, verbose=True):
                          print(f"{DAYS[t]:<5} {i:<6} {'-':<6} {'-':<8} {'-':<8} {'-':<8} (Idle at {i}: {val_i:.0f})")
 
             print("\n--- Summary Metrics ---")
-            print(f"Total Cost: {model.objVal}")
+            print(f"Total Cost: {myModel.objVal}")
             print(f"Total Loaded Flights: {total_shipped}")
             print(f"Repositioning Cost: {repo_cost}")
             print(f"Holding Cost: {hold_cost}")
             
         return {
-            "Total Cost": model.objVal,
+            "Total Cost": myModel.objVal,
             "Repo Cost": repo_cost,
             "Hold Cost": hold_cost,
             "Backlog Days": total_backlog_days
