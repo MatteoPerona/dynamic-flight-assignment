@@ -23,7 +23,6 @@ def run_demand_experiments():
     # Original A->B: [100, 200, 100, 400, 300]
     # Note: Fri backlog (190) + Mon demand (100) = 290. 
     # Bottleneck is fleet.
-    # Let's try to flatten demand.
     
     modified_demand = copy.deepcopy(DEFAULT_DEMAND)
     # A->B demand
