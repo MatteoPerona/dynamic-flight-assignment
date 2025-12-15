@@ -39,7 +39,6 @@ def solve_cargo_operations(fleet_size=1200, demand_override=None, verbose=True):
     demand = demand_override if demand_override else DEFAULT_DEMAND
     
     # --- Model ---
-    # Suppress output if not verbose
     env = Env(empty=True)
     if not verbose:
         env.setParam('OutputFlag', 0)
@@ -96,7 +95,7 @@ def solve_cargo_operations(fleet_size=1200, demand_override=None, verbose=True):
         repo_cost = obj_repo.getValue()
         hold_cost = obj_hold.getValue()
         total_shipped = sum(x[i,j,t].X for i,j in ROUTES for t in range(T))
-        total_backlog_days = sum(H[i,j,t].X for i,j in demand.keys() for t in range(T)) # Sum of H is total backlog-days
+        total_backlog_days = sum(H[i,j,t].X for i,j in demand.keys() for t in range(T)) 
         
         if verbose:
             print(f"\nObjective Value: {myModel.objVal}")
